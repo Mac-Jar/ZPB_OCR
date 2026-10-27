@@ -5,9 +5,10 @@ import cv2
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-TESTING_DATASET_PATH = "./dataset/testing_data/images/"
-TRAINING_DATASET_PATH = "./dataset/training_data/images/"
-
+TESTING_DATASET_IMAGE_PATH = "./dataset/testing_data/images/"
+TESTING_DATASET_ANNOTATION_PATH = "./dataset/testing_data/annotations/"
+TRAINING_DATASET_IMAGE_PATH = "./dataset/training_data/images/"
+TRAINING_DATASET_ANNOTATION_PATH = "./dataset/training_data/annotations/"
 
 def load_image(image_path):
     return cv2.imread(image_path)
@@ -32,7 +33,6 @@ def convert_to_jpg(img, quality: int):
 def add_noise_to_img(img, mean=0, std=100):
 
     gaussian_noise = np.random.normal(mean, std, img.shape).astype(np.int8)
-    print(img.dtype)
     return cv2.add(img, gaussian_noise, dtype=cv2.CV_8U)
 
 
@@ -61,20 +61,48 @@ def pipeline_noise(img, noise_mean: float, noise_std: float):
 
 
 def pipeline_all(limit: int = 10):
-    filepaths = [f for f in Path(TRAINING_DATASET_PATH).glob("*.png")]
-    print(f"Łączna liczba obrazów w zbiorze: {len(filepaths)}")
+    tot_img_filepaths = [f for f in Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")]
+    print(f"Łączna liczba obrazów w zbiorze: {len(tot_img_filepaths)}")
+    tot_label_filepaths = [f for f in Path(TRAINING_DATASET_ANNOTATION_PATH).glob("*.json")]
 
-    filepaths = filepaths[:limit]
 
-    print(f"Przetwarzanie {len(filepaths)} obrazów")
-    
+    img_filepaths = tot_img_filepaths[:limit]
+    label_filepaths = tot_label_filepaths[:limit]
+    # print(img_filepaths)
+    # print(label_filepaths)
+    # exit()
+    # print(f"Przetwarzanie {len(img_filepaths)} obrazów")
+
     jpg_quals = [2, 10, 20]
     size_ratios = [0.1, 0.3, 0.5, 1.5]
     noise_stds = [50, 100, 200]
+    print(f"Całkowita liczba zaszumionych obrazów : {len(tot_img_filepaths)  * len(noise_stds)}")
+    print(f"Parametry szumu  std {noise_stds}, srednia 0")
+    print(f"Całkowita liczba przeskalowanych obrazów : {len(tot_img_filepaths) * len(size_ratios)}")
+    print(f"Parametry skalowania {size_ratios}")
+    print(f"Całkowita liczba skompresowanych obrazów : {len(tot_img_filepaths) * len(jpg_quals)}")
+    print(f"Parametry jakosci jpg {jpg_quals}")
 
-    print(f"Liczba obrazów w zbiorze: {len(filepaths)}")
+    import json
 
-    for f in filepaths:
+    suma = 0
+    for f in tot_label_filepaths:
+    # Wczytanie pliku JSON z dysku (podaj swoją nazwę pliku, np. "dane.json")
+        with open(f, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        # Pobranie listy obiektów z klucza "form"
+        boxes_list = data.get("form", [])
+
+        # Obliczenie liczby boxów
+        number_of_boxes = len(boxes_list)
+        suma += number_of_boxes
+        # print(f"Liczba boxów w pliku {f}: {number_of_boxes}")
+
+    print(f"całkowita liczba boxów : {suma}")
+    # exit()
+    for f in img_filepaths:
+
         img = load_image(f)
         for jpg_qual in jpg_quals:
             pipeline_jpg(img, jpg_qual)
