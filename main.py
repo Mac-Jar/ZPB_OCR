@@ -4,6 +4,7 @@ from PIL import Image
 import cv2
 import matplotlib.pyplot as plt
 from pathlib import Path
+from ocr import run_ocr
 
 TESTING_DATASET_IMAGE_PATH = "./dataset/testing_data/images/"
 TESTING_DATASET_ANNOTATION_PATH = "./dataset/testing_data/annotations/"
@@ -36,28 +37,32 @@ def add_noise_to_img(img, mean=0, std=100):
     return cv2.add(img, gaussian_noise, dtype=cv2.CV_8U)
 
 
-def pipeline_jpg(img, jpg_quality: int):
+def pipeline_jpg(img, jpg_quality: int, verbose: bool = False):
     img_jpg = convert_to_jpg(img, jpg_quality)
-    cv2.imshow(f"Compressed, quality={jpg_quality}", img_jpg)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    return img_jpg
+    ocr_result = run_ocr(img_jpg, method='tesseract')
+    if verbose:
+        cv2.imshow(f"Compressed, quality={jpg_quality}", img_jpg)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    return [(method, run_ocr(img_jpg, method=method)) for method in [ 'paddleocr']]
 
 
-def pipeline_resolution(img, size_ratio: float):
+def pipeline_resolution(img, size_ratio: float, verbose: bool = False):
     img_res = resize(img, size_ratio)
-    cv2.imshow(f"Resized, ratio={size_ratio}", img_res)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    return img_res
+    if verbose:
+        cv2.imshow(f"Resized, ratio={size_ratio}", img_res)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    return [(method, run_ocr(img_res, method=method)) for method in [ 'paddleocr']]
 
 
-def pipeline_noise(img, noise_mean: float, noise_std: float):
+def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = False):
     img_noise = add_noise_to_img(img, noise_mean, noise_std)
-    cv2.imshow(f"Noise, std={noise_std}", img_noise)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-    return img_noise
+    if verbose:
+        cv2.imshow(f"Noise, std={noise_std}", img_noise)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    return [(method, run_ocr(img_noise, method=method)) for method in [ 'paddleocr']]
 
 
 def pipeline_all(limit: int = 10):
@@ -102,7 +107,6 @@ def pipeline_all(limit: int = 10):
     print(f"całkowita liczba boxów : {suma}")
     # exit()
     for f in img_filepaths:
-
         img = load_image(f)
         for jpg_qual in jpg_quals:
             pipeline_jpg(img, jpg_qual)
