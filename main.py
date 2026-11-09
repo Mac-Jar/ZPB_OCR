@@ -1,8 +1,8 @@
-import PIL
+# import PIL
 import numpy as np
 from PIL import Image
 import cv2
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from pathlib import Path
 from ocr import run_ocr
 
@@ -44,7 +44,7 @@ def pipeline_jpg(img, jpg_quality: int, verbose: bool = False):
         cv2.imshow(f"Compressed, quality={jpg_quality}", img_jpg)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_jpg, method=method)) for method in [ 'paddleocr']]
+    return [(method, run_ocr(img_jpg, method=method)) for method in [ 'easyocr',]]
 
 
 def pipeline_resolution(img, size_ratio: float, verbose: bool = False):
@@ -53,7 +53,7 @@ def pipeline_resolution(img, size_ratio: float, verbose: bool = False):
         cv2.imshow(f"Resized, ratio={size_ratio}", img_res)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_res, method=method)) for method in [ 'paddleocr']]
+    return [(method, run_ocr(img_res, method=method)) for method in [ 'easyocr']]
 
 
 def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = False):
@@ -62,12 +62,12 @@ def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = Fal
         cv2.imshow(f"Noise, std={noise_std}", img_noise)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_noise, method=method)) for method in [ 'paddleocr']]
+    return [(method, run_ocr(img_noise, method=method)) for method in [ 'easyocr']]
 
-
+from eval import evaluate_ocr_vs_ground_truth
 def pipeline_all(limit: int = 10):
     tot_img_filepaths = [f for f in Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")]
-    print(f"Łączna liczba obrazów w zbiorze: {len(tot_img_filepaths)}")
+    # print(f"Łączna liczba obrazów w zbiorze: {len(tot_img_filepaths)}")
     tot_label_filepaths = [f for f in Path(TRAINING_DATASET_ANNOTATION_PATH).glob("*.json")]
 
 
@@ -78,44 +78,61 @@ def pipeline_all(limit: int = 10):
     # exit()
     # print(f"Przetwarzanie {len(img_filepaths)} obrazów")
 
-    jpg_quals = [2, 10, 20]
+    jpg_quals = [90, 10, 20]
     size_ratios = [0.1, 0.3, 0.5, 1.5]
     noise_stds = [50, 100, 200]
-    print(f"Całkowita liczba zaszumionych obrazów : {len(tot_img_filepaths)  * len(noise_stds)}")
-    print(f"Parametry szumu  std {noise_stds}, srednia 0")
-    print(f"Całkowita liczba przeskalowanych obrazów : {len(tot_img_filepaths) * len(size_ratios)}")
-    print(f"Parametry skalowania {size_ratios}")
-    print(f"Całkowita liczba skompresowanych obrazów : {len(tot_img_filepaths) * len(jpg_quals)}")
-    print(f"Parametry jakosci jpg {jpg_quals}")
+    # print(f"Całkowita liczba zaszumionych obrazów : {len(tot_img_filepaths)  * len(noise_stds)}")
+    # print(f"Parametry szumu  std {noise_stds}, srednia 0")
+    # print(f"Całkowita liczba przeskalowanych obrazów : {len(tot_img_filepaths) * len(size_ratios)}")
+    # print(f"Parametry skalowania {size_ratios}")
+    # print(f"Całkowita liczba skompresowanych obrazów : {len(tot_img_filepaths) * len(jpg_quals)}")
+    # print(f"Parametry jakosci jpg {jpg_quals}")
 
     import json
 
-    suma = 0
-    for f in tot_label_filepaths:
-    # Wczytanie pliku JSON z dysku (podaj swoją nazwę pliku, np. "dane.json")
-        with open(f, "r", encoding="utf-8") as file:
-            data = json.load(file)
+    # suma = 0
+    # for f in tot_label_filepaths:
+    # # Wczytanie pliku JSON z dysku (podaj swoją nazwę pliku, np. "dane.json")
+    #     with open(f, "r", encoding="utf-8") as file:
+    #         data = json.load(file)
 
-        # Pobranie listy obiektów z klucza "form"
-        boxes_list = data.get("form", [])
+    #     # Pobranie listy obiektów z klucza "form"
+    #     boxes_list = data.get("form", [])
 
-        # Obliczenie liczby boxów
-        number_of_boxes = len(boxes_list)
-        suma += number_of_boxes
-        # print(f"Liczba boxów w pliku {f}: {number_of_boxes}")
+    #     # Obliczenie liczby boxów
+    #     number_of_boxes = len(boxes_list)
+    #     suma += number_of_boxes
+    #     # print(f"Liczba boxów w pliku {f}: {number_of_boxes}")
 
-    print(f"całkowita liczba boxów : {suma}")
+    # print(f"całkowita liczba boxów : {suma}")
     # exit()
-    for f in img_filepaths:
+    # tot_label_filepaths.sort(key=lambda x: x.name)
+    # img_filepaths.sort(key=lambda x: x.name)
+    # print(img_filepaths[:5])
+    # print(tot_label_filepaths[:5])
+    # exit()
+    for f in img_filepaths[:1]:
         img = load_image(f)
+        # out = []
         for jpg_qual in jpg_quals:
-            pipeline_jpg(img, jpg_qual)
-        
-        for size_ratio in size_ratios:
-            pipeline_resolution(img, size_ratio)
+            out = pipeline_jpg(img, jpg_qual)
+            # print(type(out))
+            # print(out)
+            # print(out[0])
+            # print(f.name)
+            annotation_path = (Path(TRAINING_DATASET_ANNOTATION_PATH+f.name[:-3]+"json"))
+            with open(annotation_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                boxes_list = data.get("form", [])
+                # print(boxes_list)
+                # print(boxes_list[0])
+                print(evaluate_ocr_vs_ground_truth(out[0][1], boxes_list))
+            # exit()
+        # for size_ratio in size_ratios:
+        #     pipeline_resolution(img, size_ratio)
             
-        for noise_std in noise_stds:
-            pipeline_noise(img, 0, noise_std)
+        # for noise_std in noise_stds:
+        #     pipeline_noise(img, 0, noise_std)
 
 
 if __name__ == "__main__":
