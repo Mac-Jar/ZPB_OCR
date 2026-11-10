@@ -11,6 +11,16 @@ TESTING_DATASET_ANNOTATION_PATH = "./dataset/testing_data/annotations/"
 TRAINING_DATASET_IMAGE_PATH = "./dataset/training_data/images/"
 TRAINING_DATASET_ANNOTATION_PATH = "./dataset/training_data/annotations/"
 
+
+CHOSEN_METHODS=[ 'easyocr','tesseract','paddleocr']
+#
+# import pytesseract
+#
+# pytesseract.pytesseract.tesseract_cmd = (
+#     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# )
+
+
 def load_image(image_path):
     return cv2.imread(image_path)
 
@@ -44,7 +54,7 @@ def pipeline_jpg(img, jpg_quality: int, verbose: bool = False):
         cv2.imshow(f"Compressed, quality={jpg_quality}", img_jpg)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_jpg, method=method)) for method in [ 'easyocr',]]
+    return [(method, run_ocr(img_jpg, method=method)) for method in CHOSEN_METHODS]
 
 
 def pipeline_resolution(img, size_ratio: float, verbose: bool = False):
@@ -53,7 +63,7 @@ def pipeline_resolution(img, size_ratio: float, verbose: bool = False):
         cv2.imshow(f"Resized, ratio={size_ratio}", img_res)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_res, method=method)) for method in [ 'easyocr']]
+    return [(method, run_ocr(img_res, method=method)) for method in CHOSEN_METHODS]
 
 
 def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = False):
@@ -62,7 +72,7 @@ def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = Fal
         cv2.imshow(f"Noise, std={noise_std}", img_noise)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    return [(method, run_ocr(img_noise, method=method)) for method in [ 'easyocr']]
+    return [(method, run_ocr(img_noise, method=method)) for method in CHOSEN_METHODS]
 
 from eval import evaluate_ocr_vs_ground_truth
 def pipeline_all(limit: int = 10):
@@ -126,7 +136,10 @@ def pipeline_all(limit: int = 10):
                 boxes_list = data.get("form", [])
                 # print(boxes_list)
                 # print(boxes_list[0])
-                print(evaluate_ocr_vs_ground_truth(out[0][1], boxes_list))
+                print("easyOCR:","JPG Quality:",jpg_qual,evaluate_ocr_vs_ground_truth(out[0][1], boxes_list))
+                print("Tesseract:","JPG Quality:",jpg_qual,evaluate_ocr_vs_ground_truth(out[1][1], boxes_list))
+                print("Paddle:","JPG Quality:",jpg_qual,evaluate_ocr_vs_ground_truth(out[2][1], boxes_list))
+
             # exit()
         # for size_ratio in size_ratios:
         #     pipeline_resolution(img, size_ratio)

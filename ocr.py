@@ -7,8 +7,8 @@ from functools import lru_cache
 from typing import Literal
 
 import numpy as np
-# import pytesseract
-# from pytesseract import Output
+import pytesseract
+from pytesseract import Output
 
 
 @dataclass
@@ -51,22 +51,22 @@ def run_ocr(
     results: list[OcrResult] = []
 
     if method == 'tesseract':
-        pass
-        # data = pytesseract.image_to_data(img, output_type=Output.DICT)
-        # for i in range(len(data['text'])):
-        #     text = data['text'][i].strip()
-        #     conf = float(data['conf'][i])
-        #     if not text or conf < 0:
-        #         continue
-        #     x, y = data['left'][i], data['top'][i]
-        #     w, h = data['width'][i], data['height'][i]
-        #     box = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
-        #     results.append(OcrResult(text=text, confidence=conf / 100.0, box=box))
+
+        data = pytesseract.image_to_data(img, output_type=Output.DICT)
+        for i in range(len(data['text'])):
+            text = data['text'][i].strip()
+            conf = float(data['conf'][i])
+            if not text or conf < 0:
+                continue
+            x, y = data['left'][i], data['top'][i]
+            w, h = data['width'][i], data['height'][i]
+            box = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+            results.append(OcrResult(text=text, confidence=conf / 100.0, box=box[0]+box[2],
+))
 
     elif method == 'easyocr':
         reader = get_easyocr_reader(lang)
         for box, text, conf in reader.readtext(to_bgr_array(img)):
-            # print(box)
             # print(box[0]+box[2])
             results.append(
                 OcrResult(
@@ -77,21 +77,21 @@ def run_ocr(
             )
 
     elif method == 'paddleocr':
-        pass
-        # ocr = get_paddleocr_reader(lang)
-        # raw = ocr.predict(to_bgr_array(img))
-        # for page in raw:
-        #     texts = page['rec_texts']
-        #     scores = page['rec_scores']
-        #     polys = page['rec_polys']
-        #     for text, score, poly in zip(texts, scores, polys):
-        #         results.append(
-        #             OcrResult(
-        #                 text=text,
-        #                 confidence=float(score),
-        #                 box=[[float(p[0]), float(p[1])] for p in poly],
-        #             )
-        #         )
+
+        ocr = get_paddleocr_reader(lang)
+        raw = ocr.predict(to_bgr_array(img))
+        for page in raw:
+            texts = page['rec_texts']
+            scores = page['rec_scores']
+            polys = page['rec_polys']
+            for text, score, poly in zip(texts, scores, polys):
+                results.append(
+                    OcrResult(
+                        text=text,
+                        confidence=float(score),
+                        box = list(np.hstack((poly[0],poly[2])))
+                    )
+                )
 
     else:
         raise ValueError(f"Unsupported OCR method: {method}")
