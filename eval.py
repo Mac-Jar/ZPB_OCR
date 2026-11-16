@@ -19,13 +19,18 @@ def wer(ref, hyp):
 
 
 def overlap_ratio(gt_box, ocr_box):
-    """Jaka część pola boksa OCR leży wewnątrz boksa GT (0..1)."""
-    x1 = max(gt_box[0], ocr_box[0])
-    y1 = max(gt_box[1], ocr_box[1])
-    x2 = min(gt_box[2], ocr_box[2])
-    y2 = min(gt_box[3], ocr_box[3])
-    inter = max(0, x2 - x1) * max(0, y2 - y1)
-    area = (ocr_box[2] - ocr_box[0]) * (ocr_box[3] - ocr_box[1])
+    gx1, gy1, gx2, gy2 = map(float, gt_box)
+    ox1, oy1, ox2, oy2 = map(float, ocr_box)
+
+    x1 = max(gx1, ox1)
+    y1 = max(gy1, oy1)
+    x2 = min(gx2, ox2)
+    y2 = min(gy2, oy2)
+
+    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+
+    area = max(0.0, ox2 - ox1) * max(0.0, oy2 - oy1)
+
     return inter / area if area > 0 else 0.0
 
 
@@ -52,6 +57,9 @@ def evaluate_ocr_vs_ground_truth(ocr_results, ground_truth, min_overlap=0.5):
         details.append({
             'gt_text': gt['text'],
             'ocr_text': ocr_text,
+            'gt_box': gt['box'],
+            'ocr_boxes': [o.box for o in matched],
+            'correct': gt['text'].strip().casefold() == ocr_text.strip().casefold(),
             'n_boxes': len(matched),
             'cer': cer(gt['text'], ocr_text),
             'wer': wer(gt['text'], ocr_text),
