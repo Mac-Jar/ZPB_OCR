@@ -162,11 +162,12 @@ def pipeline_all(limit=10):
                     f"Czas: {ocr_time:.3f} s"
                 )
 
-            plot_example(
-                img_test,
-                evaluations,
-                f"{f.stem}_jpg{jpg_quality}"
-            )
+            if f == img_filepaths[0]:
+                plot_example(
+                    img_test,
+                    evaluations,
+                    f"{f.stem}_jpg{jpg_quality}"
+                )
 
     experiment_times["jpeg"] = (
         time.perf_counter() - experiment_start
@@ -252,12 +253,12 @@ def pipeline_all(limit=10):
                     f"WER: {evaluation['average_wer']:.4f} | "
                     f"Czas: {ocr_time:.3f} s"
                 )
-
-            plot_example(
-                img_test,
-                evaluations,
-                f"{f.stem}_resolution{size_ratio}"
-            )
+            if f == img_filepaths[0]:
+                plot_example(
+                    img_test,
+                    evaluations,
+                    f"{f.stem}_resolution{size_ratio}"
+                )
 
     experiment_times["resolution"] = (
         time.perf_counter() - experiment_start
@@ -318,11 +319,12 @@ def pipeline_all(limit=10):
                     f"Czas: {ocr_time:.3f} s"
                 )
 
-            plot_example(
-                img_test,
-                evaluations,
-                f"{f.stem}_noise{noise_std}"
-            )
+            if f == img_filepaths[0]:
+                plot_example(
+                    img_test,
+                    evaluations,
+                    f"{f.stem}_noise{noise_std}"
+                )
 
     experiment_times["noise"] = (
         time.perf_counter() - experiment_start
@@ -417,6 +419,10 @@ def pipeline_all(limit=10):
                 f"Łącznie: {np.sum(method_times):.2f} s | "
                 f"Liczba wywołań: {len(method_times)}"
             )
+
+    plot_metrics(results)
+    plot_metrics_seperate(results)
+
 
     return results
 
