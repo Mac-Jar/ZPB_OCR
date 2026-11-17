@@ -34,7 +34,10 @@ def to_bgr_array(img):
 @lru_cache(maxsize=None)
 def get_easyocr_reader(lang: str):
     import easyocr
-    return easyocr.Reader([lang])
+    return easyocr.Reader(
+        [lang],
+        gpu=True
+    )
 
 
 @lru_cache(maxsize=None)
