@@ -172,7 +172,6 @@ def plot_metrics_seperate(results):
         plt.close(fig)
 
 
-
 def plot_example(img, evaluations, title):
     """
     evaluations:
@@ -206,10 +205,16 @@ def plot_example(img, evaluations, title):
         )
         ax.axis("off")
 
-        for detail in evaluation["details"]:
+        for i, detail in enumerate(evaluation["details"]):
             x1, y1, x2, y2 = detail["gt_box"]
+            cer = detail["cer"]
 
-            color = "green" if detail["correct"] else "red"
+            if cer < 0.2:
+                color = "green"
+            elif cer < 0.6:
+                color = "yellow"
+            else:
+                color = "red"
 
             rect = patches.Rectangle(
                 (x1, y1),
@@ -221,13 +226,17 @@ def plot_example(img, evaluations, title):
             )
             ax.add_patch(rect)
 
-            # Numery pól ułatwiają powiązanie ramki z tekstem
             ax.text(
                 x1, max(0, y1 - 3),
-                str(evaluation["details"].index(detail) + 1),
-                color="white",
+                f"{cer:.2f}",
+                color="black" if color == "yellow" else "white",
                 fontsize=8,
-                bbox=dict(facecolor=color, alpha=0.8),
+                bbox=dict(
+                    facecolor=color,
+                    alpha=0.4,
+                    edgecolor="none",
+                    pad=2,
+                ),
             )
 
     fig.suptitle(title)

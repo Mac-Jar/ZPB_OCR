@@ -6,7 +6,7 @@ import json
 import time
 # import matplotlib.pyplot as plt
 from pathlib import Path
-from ocr import run_ocr
+from ocr import run_ocr, run_ocr_timed, shutdown_ocr
 from plots import plot_metrics_seperate, plot_metrics, plot_example
 from eval import evaluate_ocr_vs_ground_truth
 
@@ -17,13 +17,6 @@ TRAINING_DATASET_ANNOTATION_PATH = "./dataset/training_data/annotations/"
 
 
 CHOSEN_METHODS=[ 'easyocr','tesseract','paddleocr']
-#
-# import pytesseract
-#
-# pytesseract.pytesseract.tesseract_cmd = (
-#     r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-# )
-
 
 def load_image(image_path):
     return cv2.imread(image_path)
@@ -87,6 +80,22 @@ def pipeline_all(limit=10):
         Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")
     )
 
+    # ============================================================
+    # WARM-UP MODELI OCR
+    # ============================================================
+
+    if img_filepaths:
+        print("\nRozgrzewanie silników OCR...")
+
+        warmup_img = load_image(str(img_filepaths[0]))
+
+        for method in CHOSEN_METHODS:
+            _, warmup_time = run_ocr_timed(warmup_img, method)
+            print(f"{method:12} | Warm-up: {warmup_time:.3f} s")
+
+        print("Warm-up zakończony.\n")
+
+
     if limit is not None:
         img_filepaths = img_filepaths[:limit]
 
@@ -100,16 +109,10 @@ def pipeline_all(limit=10):
 
     processed_images = 0
 
-    def run_ocr_timed(img, method):
-        start = time.perf_counter()
-        result = run_ocr(img, method=method)
-        elapsed = time.perf_counter() - start
-        return result, elapsed
-
     # ============================================================
     # EKSPERYMENT 1 - JAKOŚĆ JPEG
     # ============================================================
-
+    whole_experiment_start = time.perf_counter()
     experiment_start = time.perf_counter()
 
     for f in img_filepaths:
@@ -130,14 +133,15 @@ def pipeline_all(limit=10):
 
             img_test = convert_to_jpg(img, jpg_quality)
 
-            ocr_results = [
-                (method, *run_ocr_timed(img_test, method))
-                for method in CHOSEN_METHODS
-            ]
+            ocr_results = {}
+
+            for method in CHOSEN_METHODS:
+                out, ocr_time = run_ocr_timed(img_test, method)
+                ocr_results[method] = (out, ocr_time)
 
             evaluations = {}
 
-            for method, out, ocr_time in ocr_results:
+            for method, (out, ocr_time) in ocr_results.items():
                 evaluation = evaluate_ocr_vs_ground_truth(
                     out, boxes_list
                 )
@@ -162,12 +166,17 @@ def pipeline_all(limit=10):
                     f"Czas: {ocr_time:.3f} s"
                 )
 
-            if f == img_filepaths[0]:
-                plot_example(
-                    img_test,
-                    evaluations,
-                    f"{f.stem}_jpg{jpg_quality}"
-                )
+            plot_example(
+                img_test,
+                evaluations,
+                f"{f.stem}_jpg{jpg_quality}"
+            )
+            # if f == img_filepaths[0]:
+            #     plot_example(
+            #         img_test,
+            #         evaluations,
+            #         f"{f.stem}_jpg{jpg_quality}"
+            #     )
 
     experiment_times["jpeg"] = (
         time.perf_counter() - experiment_start
@@ -222,14 +231,15 @@ def pipeline_all(limit=10):
 
                 scaled_boxes.append(scaled_box)
 
-            ocr_results = [
-                (method, *run_ocr_timed(img_test, method))
-                for method in CHOSEN_METHODS
-            ]
+            ocr_results = {}
+
+            for method in CHOSEN_METHODS:
+                out, ocr_time = run_ocr_timed(img_test, method)
+                ocr_results[method] = (out, ocr_time)
 
             evaluations = {}
 
-            for method, out, ocr_time in ocr_results:
+            for method, (out, ocr_time) in ocr_results.items():
                 evaluation = evaluate_ocr_vs_ground_truth(
                     out, scaled_boxes
                 )
@@ -287,14 +297,15 @@ def pipeline_all(limit=10):
 
             img_test = add_noise_to_img(img, 0, noise_std)
 
-            ocr_results = [
-                (method, *run_ocr_timed(img_test, method))
-                for method in CHOSEN_METHODS
-            ]
+            ocr_results = {}
+
+            for method in CHOSEN_METHODS:
+                out, ocr_time = run_ocr_timed(img_test, method)
+                ocr_results[method] = (out, ocr_time)
 
             evaluations = {}
 
-            for method, out, ocr_time in ocr_results:
+            for method, (out, ocr_time) in ocr_results.items():
                 evaluation = evaluate_ocr_vs_ground_truth(
                     out, boxes_list
                 )
@@ -394,16 +405,19 @@ def pipeline_all(limit=10):
                 f"{experiment_times[experiment] / processed_images:.2f} s"
             )
 
+    whole_experiment_end = time.perf_counter()
     print("\n" + "=" * 90)
     print("PODSUMOWANIE CZASU OCR")
     print("=" * 90)
 
     total_ocr_time = sum(r["ocr_time"] for r in results)
     total_ocr_calls = len(results)
+    total_time=sum(experiment_times[experiment] for experiment in experiment_times )
 
     print(f"Łączny czas samego OCR: {total_ocr_time:.2f} s")
     print(f"Średni czas pojedynczego OCR: {total_ocr_time / total_ocr_calls:.3f} s")
-
+    print(f"Czas z preprocessingiem: {whole_experiment_end-whole_experiment_start:.2f} s")
+    print(f"Czas z preprocessingiem: {total_time:.2f} s")
     print("\nŚREDNI CZAS OCR WEDŁUG METODY:")
 
     for method in CHOSEN_METHODS:
@@ -425,8 +439,6 @@ def pipeline_all(limit=10):
 
 
     return results
-
-
 
 # def pipeline_all(limit: int = 10):
 #     tot_img_filepaths = [f for f in Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")]
@@ -500,6 +512,8 @@ def pipeline_all(limit=10):
 #         # for noise_std in noise_stds:
 #         #     pipeline_noise(img, 0, noise_std)
 #
-
 if __name__ == "__main__":
-    pipeline_all(limit=20)
+    try:
+        pipeline_all(limit=20)
+    finally:
+        shutdown_ocr()
