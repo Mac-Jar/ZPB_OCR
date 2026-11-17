@@ -1,0 +1,31 @@
+\frametitle{Etykiety w zbiorze FUNSD}
+\begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \begin{itemize}
+        \item Ramki otaczające fragmenty tekstu (\emph{bounding boxes})
+        \item Tekst referencyjny (\emph{ground truth}) dla każdej ramki
+        \item Podział na słowa oraz typy elementów: pytanie, odpowiedź, nagłówek
+      \end{itemize}
+      \vspace{0.5em}
+      \begin{alertblock}{Zastosowanie w testach}
+        Etykiety pozwalają automatycznie obliczać metryki jakości OCR.
+      \end{alertblock}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+\begin{lstlisting}
+{
+  "box": [96, 141, 141, 158],
+  "text": "FROM:",
+  "label": "question",
+  "words": [
+    {
+      "box": [96, 141, 141, 158],
+      "text": "FROM:"
+    }
+  ],
+  "linking": [],
+  "id": 1
+}
+\end{lstlisting}
+    \end{column}
+  \end{columns}
