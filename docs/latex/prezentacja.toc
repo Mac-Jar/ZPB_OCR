@@ -1,0 +1,6 @@
+\babel@toc {polish}{}\relax 
+\beamer@sectionintoc {1}{Wprowadzenie}{3}{0}{1}
+\beamer@sectionintoc {2}{Zbiór danych}{6}{0}{2}
+\beamer@sectionintoc {3}{Metodyka}{9}{0}{3}
+\beamer@sectionintoc {4}{Hipotezy}{14}{0}{4}
+\beamer@sectionintoc {5}{Stan prac}{15}{0}{5}
