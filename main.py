@@ -7,7 +7,6 @@ from pathlib import Path
 from ocr import run_ocr, run_ocr_timed, shutdown_ocr
 from plots import plot_metrics_seperate, plot_metrics, plot_example
 from eval import evaluate_ocr_vs_ground_truth
-from super_resolution import upscale
 
 TESTING_DATASET_IMAGE_PATH = "./dataset/testing_data/images/"
 TESTING_DATASET_ANNOTATION_PATH = "./dataset/testing_data/annotations/"
@@ -33,6 +32,8 @@ def resize(img, size_ratio: float):
 
 
 def super_resolve(img):
+    from super_resolution import upscale
+
     rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     upscaled = upscale(Image.fromarray(rgb))
     return cv2.cvtColor(np.array(upscaled), cv2.COLOR_RGB2BGR)
@@ -201,7 +202,17 @@ def pipeline_all(limit=10):
                     f"Time: {ocr_time:.3f} s"
                 )
 
-            plot_example(img_test, evaluations, f"{f.stem}_jpg{jpg_quality}")
+            plot_example(
+                img_test,
+                evaluations,
+                f"{f.stem}_jpg{jpg_quality}"
+            )
+            # if f == img_filepaths[0]:
+            #     plot_example(
+            #         img_test,
+            #         evaluations,
+            #         f"{f.stem}_jpg{jpg_quality}"
+            #     )
 
     experiment_times["jpeg"] = time.perf_counter() - experiment_start
 
@@ -491,13 +502,6 @@ def pipeline_all(limit=10):
 
     return results
 
-
-if __name__ == "__main__":
-    try:
-        pipeline_all(limit=20)
-    finally:
-        shutdown_ocr()
-
 # def pipeline_all(limit: int = 10):
 #     tot_img_filepaths = [f for f in Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")]
 #     # print(f"Łączna liczba obrazów w zbiorze: {len(tot_img_filepaths)}")
@@ -572,6 +576,6 @@ if __name__ == "__main__":
 #
 if __name__ == "__main__":
     try:
-        pipeline_all(limit=20)
+        pipeline_all(limit=2)
     finally:
         shutdown_ocr()

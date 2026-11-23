@@ -11,6 +11,8 @@ import pytesseract
 from pytesseract import Output
 import time
 import threading
+import cv2
+from PIL import Image
 
 @dataclass
 class OcrResult:
@@ -59,24 +61,81 @@ def get_paddleocr_reader(lang: str):
 
 def _run_ocr_local(img, method, lang='en') -> list[OcrResult]:
     results = []
-
     if method == 'tesseract':
-        data = pytesseract.image_to_data(img, output_type=Output.DICT)
+
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Upscaling
+        gray = cv2.resize(
+            gray,
+            None,
+            fx=2,
+            fy=2,
+            interpolation=cv2.INTER_CUBIC
+        )
+
+        config = "--oem 1 --psm 11"
+
+        data = pytesseract.image_to_data(
+            gray,
+            lang="eng",
+            config=config,
+            output_type=Output.DICT
+        )
+
+        scale = 2
 
         for i in range(len(data['text'])):
+
             text = data['text'][i].strip()
             conf = float(data['conf'][i])
 
             if not text or conf < 0:
                 continue
 
-            x, y = data['left'][i], data['top'][i]
-            w, h = data['width'][i], data['height'][i]
-            box = [x, y, x + w, y + h]
+            x = data['left'][i]
+            y = data['top'][i]
+            w = data['width'][i]
+            h = data['height'][i]
+
+            box = [
+                x / scale,
+                y / scale,
+                (x + w) / scale,
+                (y + h) / scale
+            ]
 
             results.append(
-                OcrResult(text=text, confidence=conf / 100.0, box=box)
+                OcrResult(
+                    text=text,
+                    confidence=conf / 100.0,
+                    box=box
+                )
             )
+
+    # if method == 'tesseract':
+    #     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    #     gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    #     blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    #     _, binary = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    #     data = pytesseract.image_to_data(Image.fromarray(binary),output_type=Output.DICT)
+    #
+    #     #data = pytesseract.image_to_data(img, output_type=Output.DICT)
+    #
+    #     for i in range(len(data['text'])):
+    #         text = data['text'][i].strip()
+    #         conf = float(data['conf'][i])
+    #
+    #         if not text or conf < 0:
+    #             continue
+    #
+    #         x, y = data['left'][i], data['top'][i]
+    #         w, h = data['width'][i], data['height'][i]
+    #         box = [x, y, x + w, y + h]
+    #
+    #         results.append(
+    #             OcrResult(text=text, confidence=conf / 100.0, box=box)
+    #         )
 
     elif method == 'easyocr':
         reader = get_easyocr_reader(lang)

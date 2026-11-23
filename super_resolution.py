@@ -11,7 +11,9 @@ SUPER_RESOLUTION_SCALE = 4
 def get_realesrgan_model():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = RealESRGAN(device, scale=SUPER_RESOLUTION_SCALE)
-    model.load_weights()
+    #model.load_weights()
+    model.load_weights('weights/RealESRGAN_x4.pth', download=True)
+
     return model
 
 
