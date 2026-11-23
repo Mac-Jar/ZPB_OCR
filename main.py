@@ -1,14 +1,13 @@
-# import PIL
 import numpy as np
 from PIL import Image
 import cv2
 import json
 import time
-# import matplotlib.pyplot as plt
 from pathlib import Path
 from ocr import run_ocr, run_ocr_timed, shutdown_ocr
 from plots import plot_metrics_seperate, plot_metrics, plot_example
 from eval import evaluate_ocr_vs_ground_truth
+from super_resolution import upscale
 
 TESTING_DATASET_IMAGE_PATH = "./dataset/testing_data/images/"
 TESTING_DATASET_ANNOTATION_PATH = "./dataset/testing_data/annotations/"
@@ -16,7 +15,8 @@ TRAINING_DATASET_IMAGE_PATH = "./dataset/training_data/images/"
 TRAINING_DATASET_ANNOTATION_PATH = "./dataset/training_data/annotations/"
 
 
-CHOSEN_METHODS=[ 'easyocr','tesseract','paddleocr']
+CHOSEN_METHODS = ["easyocr", "tesseract", "paddleocr"]
+
 
 def load_image(image_path):
     return cv2.imread(image_path)
@@ -27,9 +27,37 @@ def resize(img, size_ratio: float):
         img,
         (
             max(1, int(img.shape[1] * size_ratio)),
-            max(1, int(img.shape[0] * size_ratio))
-        )
+            max(1, int(img.shape[0] * size_ratio)),
+        ),
     )
+
+
+def super_resolve(img):
+    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    upscaled = upscale(Image.fromarray(rgb))
+    return cv2.cvtColor(np.array(upscaled), cv2.COLOR_RGB2BGR)
+
+
+def scale_boxes(boxes_list, scale_x, scale_y):
+    scaled_boxes = []
+
+    for box in boxes_list:
+        scaled_box = box.copy()
+
+        if isinstance(box["box"][0], (int, float)):
+            scaled_box["box"] = [
+                int(coord * (scale_x if i % 2 == 0 else scale_y))
+                for i, coord in enumerate(box["box"])
+            ]
+        else:
+            scaled_box["box"] = [
+                [int(point[0] * scale_x), int(point[1] * scale_y)]
+                for point in box["box"]
+            ]
+
+        scaled_boxes.append(scaled_box)
+
+    return scaled_boxes
 
 
 def convert_to_jpg(img, quality: int):
@@ -44,9 +72,9 @@ def add_noise_to_img(img, mean=0, std=100):
     noisy_img = img.astype(np.float32) + gaussian_noise
     return np.clip(noisy_img, 0, 255).astype(np.uint8)
 
+
 def pipeline_jpg(img, jpg_quality: int, verbose: bool = False):
     img_jpg = convert_to_jpg(img, jpg_quality)
-    #ocr_result = run_ocr(img_jpg, method='tesseract')
     if verbose:
         cv2.imshow(f"Compressed, quality={jpg_quality}", img_jpg)
         cv2.waitKey(0)
@@ -71,21 +99,26 @@ def pipeline_noise(img, noise_mean: float, noise_std: float, verbose: bool = Fal
         cv2.destroyAllWindows()
     return [(method, run_ocr(img_noise, method=method)) for method in CHOSEN_METHODS]
 
+
+def pipeline_super_resolution(img, sr_ratio: float, verbose: bool = False):
+    img_sr = super_resolve(resize(img, sr_ratio))
+    if verbose:
+        cv2.imshow(f"Super resolution, input ratio={sr_ratio}", img_sr)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+    return [(method, run_ocr(img_sr, method=method)) for method in CHOSEN_METHODS]
+
+
 def pipeline_all(limit=10):
     jpg_quals = [100, 75, 50, 25, 5]
     size_ratios = [1, 1.5, 0.75, 0.5, 0.33]
     noise_stds = [0, 50, 100, 200]
+    sr_ratios = [0.75, 0.5, 0.33]
 
-    img_filepaths = sorted(
-        Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")
-    )
-
-    # ============================================================
-    # WARM-UP MODELI OCR
-    # ============================================================
+    img_filepaths = sorted(Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png"))
 
     if img_filepaths:
-        print("\nRozgrzewanie silników OCR...")
+        print("\nWarming up OCR engines...")
 
         warmup_img = load_image(str(img_filepaths[0]))
 
@@ -93,8 +126,13 @@ def pipeline_all(limit=10):
             _, warmup_time = run_ocr_timed(warmup_img, method)
             print(f"{method:12} | Warm-up: {warmup_time:.3f} s")
 
-        print("Warm-up zakończony.\n")
+        warmup_start = time.perf_counter()
+        super_resolve(warmup_img[:64, :64])
+        print(
+            f"{'realesrgan':12} | Warm-up: {time.perf_counter() - warmup_start:.3f} s"
+        )
 
+        print("Warm-up finished.\n")
 
     if limit is not None:
         img_filepaths = img_filepaths[:limit]
@@ -105,22 +143,18 @@ def pipeline_all(limit=10):
         "jpeg": 0.0,
         "resolution": 0.0,
         "noise": 0.0,
+        "super_resolution": 0.0,
     }
 
     processed_images = 0
 
-    # ============================================================
-    # EKSPERYMENT 1 - JAKOŚĆ JPEG
-    # ============================================================
     whole_experiment_start = time.perf_counter()
     experiment_start = time.perf_counter()
 
     for f in img_filepaths:
         img = load_image(str(f))
 
-        annotation_path = (
-            Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
-        )
+        annotation_path = Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
 
         with open(annotation_path, "r", encoding="utf-8") as file:
             data = json.load(file)
@@ -129,7 +163,7 @@ def pipeline_all(limit=10):
         processed_images += 1
 
         for jpg_quality in jpg_quals:
-            print(f"\nJPEG: {f.name}, jakość: {jpg_quality}")
+            print(f"\nJPEG: {f.name}, quality: {jpg_quality}")
 
             img_test = convert_to_jpg(img, jpg_quality)
 
@@ -142,58 +176,41 @@ def pipeline_all(limit=10):
             evaluations = {}
 
             for method, (out, ocr_time) in ocr_results.items():
-                evaluation = evaluate_ocr_vs_ground_truth(
-                    out, boxes_list
-                )
+                evaluation = evaluate_ocr_vs_ground_truth(out, boxes_list)
 
                 evaluations[method] = evaluation
 
-                results.append({
-                    "experiment": "jpeg",
-                    "jpg_quality": jpg_quality,
-                    "size_ratio": None,
-                    "noise_std": None,
-                    "image": f.name,
-                    "method": method,
-                    "ocr_time": ocr_time,
-                    **evaluation,
-                })
+                results.append(
+                    {
+                        "experiment": "jpeg",
+                        "jpg_quality": jpg_quality,
+                        "size_ratio": None,
+                        "noise_std": None,
+                        "sr_ratio": None,
+                        "image": f.name,
+                        "method": method,
+                        "ocr_time": ocr_time,
+                        **evaluation,
+                    }
+                )
 
                 print(
                     f"{method:12} | "
                     f"CER: {evaluation['average_cer']:.4f} | "
                     f"WER: {evaluation['average_wer']:.4f} | "
-                    f"Czas: {ocr_time:.3f} s"
+                    f"Time: {ocr_time:.3f} s"
                 )
 
-            plot_example(
-                img_test,
-                evaluations,
-                f"{f.stem}_jpg{jpg_quality}"
-            )
-            # if f == img_filepaths[0]:
-            #     plot_example(
-            #         img_test,
-            #         evaluations,
-            #         f"{f.stem}_jpg{jpg_quality}"
-            #     )
+            plot_example(img_test, evaluations, f"{f.stem}_jpg{jpg_quality}")
 
-    experiment_times["jpeg"] = (
-        time.perf_counter() - experiment_start
-    )
-
-    # ============================================================
-    # EKSPERYMENT 2 - ROZDZIELCZOŚĆ
-    # ============================================================
+    experiment_times["jpeg"] = time.perf_counter() - experiment_start
 
     experiment_start = time.perf_counter()
 
     for f in img_filepaths:
         img = load_image(str(f))
 
-        annotation_path = (
-            Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
-        )
+        annotation_path = Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
 
         with open(annotation_path, "r", encoding="utf-8") as file:
             data = json.load(file)
@@ -201,35 +218,14 @@ def pipeline_all(limit=10):
         boxes_list = data.get("form", [])
 
         for size_ratio in size_ratios:
-            print(f"\nROZDZIELCZOŚĆ: {f.name}, skala: {size_ratio}")
+            print(f"\nRESOLUTION: {f.name}, scale: {size_ratio}")
 
             img_test = resize(img, size_ratio)
 
             scale_x = img_test.shape[1] / img.shape[1]
             scale_y = img_test.shape[0] / img.shape[0]
 
-            scaled_boxes = []
-
-            for box in boxes_list:
-                scaled_box = box.copy()
-
-                if isinstance(box["box"][0], (int, float)):
-                    # Format: [x1, y1, x2, y2]
-                    scaled_box["box"] = [
-                        int(coord * (scale_x if i % 2 == 0 else scale_y))
-                        for i, coord in enumerate(box["box"])
-                    ]
-                else:
-                    # Format: [[x1, y1], [x2, y2], ...]
-                    scaled_box["box"] = [
-                        [
-                            int(point[0] * scale_x),
-                            int(point[1] * scale_y)
-                        ]
-                        for point in box["box"]
-                    ]
-
-                scaled_boxes.append(scaled_box)
+            scaled_boxes = scale_boxes(boxes_list, scale_x, scale_y)
 
             ocr_results = {}
 
@@ -240,52 +236,42 @@ def pipeline_all(limit=10):
             evaluations = {}
 
             for method, (out, ocr_time) in ocr_results.items():
-                evaluation = evaluate_ocr_vs_ground_truth(
-                    out, scaled_boxes
-                )
+                evaluation = evaluate_ocr_vs_ground_truth(out, scaled_boxes)
 
                 evaluations[method] = evaluation
 
-                results.append({
-                    "experiment": "resolution",
-                    "jpg_quality": None,
-                    "size_ratio": size_ratio,
-                    "noise_std": None,
-                    "image": f.name,
-                    "method": method,
-                    "ocr_time": ocr_time,
-                    **evaluation,
-                })
+                results.append(
+                    {
+                        "experiment": "resolution",
+                        "jpg_quality": None,
+                        "size_ratio": size_ratio,
+                        "noise_std": None,
+                        "sr_ratio": None,
+                        "image": f.name,
+                        "method": method,
+                        "ocr_time": ocr_time,
+                        **evaluation,
+                    }
+                )
 
                 print(
                     f"{method:12} | "
                     f"CER: {evaluation['average_cer']:.4f} | "
                     f"WER: {evaluation['average_wer']:.4f} | "
-                    f"Czas: {ocr_time:.3f} s"
+                    f"Time: {ocr_time:.3f} s"
                 )
+
             if f == img_filepaths[0]:
-                plot_example(
-                    img_test,
-                    evaluations,
-                    f"{f.stem}_resolution{size_ratio}"
-                )
+                plot_example(img_test, evaluations, f"{f.stem}_resolution{size_ratio}")
 
-    experiment_times["resolution"] = (
-        time.perf_counter() - experiment_start
-    )
-
-    # ============================================================
-    # EKSPERYMENT 3 - SZUM
-    # ============================================================
+    experiment_times["resolution"] = time.perf_counter() - experiment_start
 
     experiment_start = time.perf_counter()
 
     for f in img_filepaths:
         img = load_image(str(f))
 
-        annotation_path = (
-            Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
-        )
+        annotation_path = Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
 
         with open(annotation_path, "r", encoding="utf-8") as file:
             data = json.load(file)
@@ -293,7 +279,7 @@ def pipeline_all(limit=10):
         boxes_list = data.get("form", [])
 
         for noise_std in noise_stds:
-            print(f"\nSZUM: {f.name}, odchylenie: {noise_std}")
+            print(f"\nNOISE: {f.name}, std: {noise_std}")
 
             img_test = add_noise_to_img(img, 0, noise_std)
 
@@ -306,58 +292,121 @@ def pipeline_all(limit=10):
             evaluations = {}
 
             for method, (out, ocr_time) in ocr_results.items():
-                evaluation = evaluate_ocr_vs_ground_truth(
-                    out, boxes_list
-                )
+                evaluation = evaluate_ocr_vs_ground_truth(out, boxes_list)
 
                 evaluations[method] = evaluation
 
-                results.append({
-                    "experiment": "noise",
-                    "jpg_quality": None,
-                    "size_ratio": None,
-                    "noise_std": noise_std,
-                    "image": f.name,
-                    "method": method,
-                    "ocr_time": ocr_time,
-                    **evaluation,
-                })
+                results.append(
+                    {
+                        "experiment": "noise",
+                        "jpg_quality": None,
+                        "size_ratio": None,
+                        "noise_std": noise_std,
+                        "sr_ratio": None,
+                        "image": f.name,
+                        "method": method,
+                        "ocr_time": ocr_time,
+                        **evaluation,
+                    }
+                )
 
                 print(
                     f"{method:12} | "
                     f"CER: {evaluation['average_cer']:.4f} | "
                     f"WER: {evaluation['average_wer']:.4f} | "
-                    f"Czas: {ocr_time:.3f} s"
+                    f"Time: {ocr_time:.3f} s"
                 )
 
             if f == img_filepaths[0]:
-                plot_example(
-                    img_test,
-                    evaluations,
-                    f"{f.stem}_noise{noise_std}"
+                plot_example(img_test, evaluations, f"{f.stem}_noise{noise_std}")
+
+    experiment_times["noise"] = time.perf_counter() - experiment_start
+
+    experiment_start = time.perf_counter()
+
+    for f in img_filepaths:
+        img = load_image(str(f))
+
+        annotation_path = Path(TRAINING_DATASET_ANNOTATION_PATH) / f"{f.stem}.json"
+
+        with open(annotation_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+
+        boxes_list = data.get("form", [])
+
+        for sr_ratio in sr_ratios:
+            print(f"\nSUPER RESOLUTION: {f.name}, input scale: {sr_ratio}")
+
+            img_low = resize(img, sr_ratio)
+
+            sr_start = time.perf_counter()
+            img_test = super_resolve(img_low)
+            sr_time = time.perf_counter() - sr_start
+
+            print(
+                f"Output size: {img_test.shape[1]}x{img_test.shape[0]} | "
+                f"Upscale time: {sr_time:.3f} s"
+            )
+
+            scale_x = img_test.shape[1] / img.shape[1]
+            scale_y = img_test.shape[0] / img.shape[0]
+
+            scaled_boxes = scale_boxes(boxes_list, scale_x, scale_y)
+
+            ocr_results = {}
+
+            for method in CHOSEN_METHODS:
+                out, ocr_time = run_ocr_timed(img_test, method)
+                ocr_results[method] = (out, ocr_time)
+
+            evaluations = {}
+
+            for method, (out, ocr_time) in ocr_results.items():
+                evaluation = evaluate_ocr_vs_ground_truth(out, scaled_boxes)
+
+                evaluations[method] = evaluation
+
+                results.append(
+                    {
+                        "experiment": "super_resolution",
+                        "jpg_quality": None,
+                        "size_ratio": None,
+                        "noise_std": None,
+                        "sr_ratio": sr_ratio,
+                        "image": f.name,
+                        "method": method,
+                        "ocr_time": ocr_time,
+                        "sr_time": sr_time,
+                        **evaluation,
+                    }
                 )
 
-    experiment_times["noise"] = (
-        time.perf_counter() - experiment_start
-    )
+                print(
+                    f"{method:12} | "
+                    f"CER: {evaluation['average_cer']:.4f} | "
+                    f"WER: {evaluation['average_wer']:.4f} | "
+                    f"Time: {ocr_time:.3f} s"
+                )
 
-    # ============================================================
-    # PODSUMOWANIE WYNIKÓW
-    # ============================================================
+            if f == img_filepaths[0]:
+                plot_example(img_test, evaluations, f"{f.stem}_sr{sr_ratio}")
+
+    experiment_times["super_resolution"] = time.perf_counter() - experiment_start
 
     print("\n" + "=" * 90)
-    print("ŚREDNIE WYNIKI EKSPERYMENTÓW")
+    print("AVERAGE EXPERIMENT RESULTS")
     print("=" * 90)
 
     experiments = [
-        ("jpeg", "JAKOŚĆ JPEG", "jpg_quality", jpg_quals),
-        ("resolution", "ROZDZIELCZOŚĆ", "size_ratio", size_ratios),
-        ("noise", "SZUM", "noise_std", noise_stds),
+        ("jpeg", "JPEG QUALITY", "jpg_quality", jpg_quals),
+        ("resolution", "RESOLUTION", "size_ratio", size_ratios),
+        ("noise", "NOISE", "noise_std", noise_stds),
+        ("super_resolution", "SUPER RESOLUTION", "sr_ratio", sr_ratios),
     ]
 
     for experiment, experiment_name, parameter, values in experiments:
         print(f"\n{'=' * 30}")
-        print(f"EKSPERYMENT: {experiment_name}")
+        print(f"EXPERIMENT: {experiment_name}")
         print(f"{'=' * 30}")
 
         for value in values:
@@ -365,7 +414,8 @@ def pipeline_all(limit=10):
 
             for method in CHOSEN_METHODS:
                 matching = [
-                    r for r in results
+                    r
+                    for r in results
                     if r["experiment"] == experiment
                     and r[parameter] == value
                     and r["method"] == method
@@ -374,71 +424,79 @@ def pipeline_all(limit=10):
                 if not matching:
                     continue
 
-                avg_cer = np.mean([
-                    r["average_cer"] for r in matching
-                ])
+                avg_cer = np.mean([r["average_cer"] for r in matching])
 
-                avg_wer = np.mean([
-                    r["average_wer"] for r in matching
-                ])
+                avg_wer = np.mean([r["average_wer"] for r in matching])
 
-                avg_time = np.mean([
-                    r["ocr_time"] for r in matching
-                ])
+                avg_time = np.mean([r["ocr_time"] for r in matching])
 
                 print(
                     f"{method:12} | "
                     f"CER: {avg_cer:.4f} | "
                     f"WER: {avg_wer:.4f} | "
-                    f"Średni czas OCR: {avg_time:.3f} s | "
-                    f"Liczba obrazów: {len(matching)}"
+                    f"Average OCR time: {avg_time:.3f} s | "
+                    f"Images: {len(matching)}"
                 )
 
-        print(
-            f"\nŁączny czas eksperymentu: "
-            f"{experiment_times[experiment]:.2f} s"
-        )
+            if experiment == "super_resolution":
+                sr_times = [
+                    r["sr_time"]
+                    for r in results
+                    if r["experiment"] == experiment
+                    and r[parameter] == value
+                    and r["method"] == CHOSEN_METHODS[0]
+                ]
+
+                if sr_times:
+                    print(f"Average upscale time: {np.mean(sr_times):.3f} s")
+
+        print(f"\nTotal experiment time: " f"{experiment_times[experiment]:.2f} s")
 
         if processed_images:
             print(
-                f"Średni czas eksperymentu na obraz: "
+                f"Average experiment time per image: "
                 f"{experiment_times[experiment] / processed_images:.2f} s"
             )
 
     whole_experiment_end = time.perf_counter()
     print("\n" + "=" * 90)
-    print("PODSUMOWANIE CZASU OCR")
+    print("OCR TIME SUMMARY")
     print("=" * 90)
 
     total_ocr_time = sum(r["ocr_time"] for r in results)
     total_ocr_calls = len(results)
-    total_time=sum(experiment_times[experiment] for experiment in experiment_times )
+    total_time = sum(experiment_times[experiment] for experiment in experiment_times)
 
-    print(f"Łączny czas samego OCR: {total_ocr_time:.2f} s")
-    print(f"Średni czas pojedynczego OCR: {total_ocr_time / total_ocr_calls:.3f} s")
-    print(f"Czas z preprocessingiem: {whole_experiment_end-whole_experiment_start:.2f} s")
-    print(f"Czas z preprocessingiem: {total_time:.2f} s")
-    print("\nŚREDNI CZAS OCR WEDŁUG METODY:")
+    print(f"Total OCR time: {total_ocr_time:.2f} s")
+    print(f"Average single OCR time: {total_ocr_time / total_ocr_calls:.3f} s")
+    print(
+        f"Time with preprocessing: {whole_experiment_end - whole_experiment_start:.2f} s"
+    )
+    print(f"Time with preprocessing: {total_time:.2f} s")
+    print("\nAVERAGE OCR TIME BY METHOD:")
 
     for method in CHOSEN_METHODS:
-        method_times = [
-            r["ocr_time"] for r in results
-            if r["method"] == method
-        ]
+        method_times = [r["ocr_time"] for r in results if r["method"] == method]
 
         if method_times:
             print(
                 f"{method:<15} "
-                f"Średnio: {np.mean(method_times):.3f} s | "
-                f"Łącznie: {np.sum(method_times):.2f} s | "
-                f"Liczba wywołań: {len(method_times)}"
+                f"Average: {np.mean(method_times):.3f} s | "
+                f"Total: {np.sum(method_times):.2f} s | "
+                f"Calls: {len(method_times)}"
             )
 
     plot_metrics(results)
     plot_metrics_seperate(results)
 
-
     return results
+
+
+if __name__ == "__main__":
+    try:
+        pipeline_all(limit=20)
+    finally:
+        shutdown_ocr()
 
 # def pipeline_all(limit: int = 10):
 #     tot_img_filepaths = [f for f in Path(TRAINING_DATASET_IMAGE_PATH).glob("*.png")]
