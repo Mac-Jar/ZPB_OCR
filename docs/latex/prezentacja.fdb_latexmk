@@ -1,7 +1,7 @@
 # Fdb version 4
-["pdflatex"] 1795457652.0749 "/home/fifi/ml1/ZPB_OCR/docs/latex/prezentacja.tex" "prezentacja.pdf" "prezentacja" 1795457659.66957 0
+["pdflatex"] 1795463224.90785 "/home/fifi/ml1/ZPB_OCR/docs/latex/prezentacja.tex" "prezentacja.pdf" "prezentacja" 1795463232.18925 0
   "/etc/texmf/web2c/texmf.cnf" 1762446351.54095 475 c0e671620eb5563b2130f56340a5fde8 ""
-  "/home/fifi/ml1/ZPB_OCR/docs/latex/prezentacja.tex" 1795457651.80592 13615 cb46f82bdc573a46ac552d2ad642d88d ""
+  "/home/fifi/ml1/ZPB_OCR/docs/latex/prezentacja.tex" 1795463219.09997 13719 ca3439b6ca862eb5c57cacdeb4569f63 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecrm0600.tfm" 1136768653 3584 291a5713401683441e0a8c8f4417b17b ""
   "/usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/ecrm0800.tfm" 1136768653 3584 49064b465390a8e316a3c8417a050403 ""
@@ -255,12 +255,12 @@
   "jpg50.png" 1795457087.49574 627327 220ebeaf78e94cc09786242207bd8faf ""
   "noise100.png" 1795457186.86896 7528921 37779f5ac289cade4a018d99adc22064 ""
   "noise50.png" 1795457120.05839 6988702 aded842c6cb0a5b5af8098464a3a17b2 ""
-  "prezentacja.aux" 1795457659.54272 6050 773740f6727a62bf44c44b1104f389dd "pdflatex"
-  "prezentacja.nav" 1795457659.54415 3258 96d20650062316d9ea1ec897c42ad1dd "pdflatex"
-  "prezentacja.out" 1795457659.54313 469 09020e275f6db877cd6b28fcff33d46c "pdflatex"
-  "prezentacja.tex" 1795457651.80592 13615 cb46f82bdc573a46ac552d2ad642d88d ""
-  "prezentacja.toc" 1795457659.54415 261 e7eea8006e74ace4545d3733b3d6931e "pdflatex"
-  "prezentacja.vrb" 1795457655.97946 842 d004704ee26ae43532c5fabe1e7465a8 "pdflatex"
+  "prezentacja.aux" 1795463232.06536 6050 773740f6727a62bf44c44b1104f389dd "pdflatex"
+  "prezentacja.nav" 1795463232.06688 3258 96d20650062316d9ea1ec897c42ad1dd "pdflatex"
+  "prezentacja.out" 1795463232.06574 469 09020e275f6db877cd6b28fcff33d46c "pdflatex"
+  "prezentacja.tex" 1795463219.09997 13719 ca3439b6ca862eb5c57cacdeb4569f63 ""
+  "prezentacja.toc" 1795463232.06688 261 e7eea8006e74ace4545d3733b3d6931e "pdflatex"
+  "prezentacja.vrb" 1795463226.63575 842 d004704ee26ae43532c5fabe1e7465a8 "pdflatex"
   "resolution0_75.png" 1795457232.52652 479874 751cf2fbfb9859ba1b301c8b0950b4cc ""
   "wer_separate.png" 1794904946.73729 165259 446a101217856449199f5837e243402c ""
   (generated)
