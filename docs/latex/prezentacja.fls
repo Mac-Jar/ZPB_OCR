@@ -1,9 +1,9 @@
-PWD /home/fifi/ml1/latex
+PWD /home/fifi/ml1/ZPB_OCR/docs/latex
 INPUT /etc/texmf/web2c/texmf.cnf
 INPUT /usr/share/texmf/web2c/texmf.cnf
 INPUT /usr/share/texlive/texmf-dist/web2c/texmf.cnf
 INPUT /var/lib/texmf/web2c/pdftex/pdflatex.fmt
-INPUT /home/fifi/ml1/latex/prezentacja.tex
+INPUT /home/fifi/ml1/ZPB_OCR/docs/latex/prezentacja.tex
 OUTPUT prezentacja.log
 INPUT /usr/share/texlive/texmf-dist/tex/latex/beamer/beamer.cls
 INPUT /usr/share/texlive/texmf-dist/tex/latex/beamer/beamer.cls
